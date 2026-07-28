@@ -1,25 +1,32 @@
 """
-Embeddings run locally via sentence-transformers (all-MiniLM-L6-v2, 384-dim) —
-no API key or per-call cost. Only the final AI *reasoning* step (app/services/ai.py)
-calls Gemini. This keeps RAG cheap to run at ingestion scale.
+Embeddings via Gemini's embedding API (text-embedding-004, 768-dim) -- NOT a local
+model. This avoids bundling torch/sentence-transformers, which alone exceeds a
+512MB free-tier RAM budget before even serving a request. Costs are minimal
+(embedding calls are cheap on Gemini's free tier), and reuses the same
+GEMINI_API_KEY you already set for reasoning -- no new account needed.
 """
-from functools import lru_cache
-from sentence_transformers import SentenceTransformer
+import google.generativeai as genai
+from app.core.config import get_settings
 
-MODEL_NAME = "all-MiniLM-L6-v2"
+settings = get_settings()
+genai.configure(api_key=settings.gemini_api_key)
+
+EMBED_MODEL = "models/text-embedding-004"
+EMBED_DIM = 768
 
 
-@lru_cache
-def get_embedder():
-    return SentenceTransformer(MODEL_NAME)
+def embed_text(text: str, task_type: str = "RETRIEVAL_DOCUMENT") -> list[float]:
+    result = genai.embed_content(model=EMBED_MODEL, content=text, task_type=task_type)
+    return result["embedding"]
 
 
-def embed_text(text: str) -> list[float]:
-    return get_embedder().encode(text, normalize_embeddings=True).tolist()
+def embed_query(text: str) -> list[float]:
+    return embed_text(text, task_type="RETRIEVAL_QUERY")
 
 
 def embed_batch(texts: list[str]) -> list[list[float]]:
-    return get_embedder().encode(texts, normalize_embeddings=True).tolist()
+    """Gemini's SDK embeds one string per call; looping is fine at ingestion-time volumes."""
+    return [embed_text(t) for t in texts]
 
 
 def chunk_text(text: str, chunk_size: int = 800, overlap: int = 120) -> list[str]:

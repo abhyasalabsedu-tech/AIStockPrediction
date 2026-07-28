@@ -1,10 +1,15 @@
 # Stock Intelligence Platform — Backend
 
 Real pipeline: **yfinance** (market data) → **pandas/numpy** (Python indicators) →
-**XGBoost** (trained on real 5y history) → **pgvector + sentence-transformers** (RAG,
-local embeddings, no API key) → **Gemini** (grounded reasoning, the only paid API call) →
-**LangGraph** (orchestrates all of it, node-by-node, auditable) → **Postgres** (every
-prediction persisted for replay/evaluation).
+**XGBoost** (trained on real 5y history) → **pgvector + Gemini embeddings** (RAG) →
+**Gemini** (grounded reasoning) → **LangGraph** (orchestrates all of it, node-by-node,
+auditable) → **Postgres** (every prediction persisted for replay/evaluation).
+
+> **Free-tier note:** embeddings run through Gemini's API rather than a local
+> sentence-transformers/torch model. Torch alone uses several hundred MB of RAM at
+> idle, which exceeds Render's free 512MB instance before it can even serve a
+> request. Using Gemini for both embeddings and reasoning keeps the whole backend
+> comfortably inside 512MB.
 
 ## 1. Local setup
 
@@ -30,9 +35,10 @@ Then `POST http://localhost:8000/api/v1/predict?ticker=TCS.NS` runs the full pip
 - Corporate filings: BSE/NSE announcement pages
 - News: wire a news API (NewsAPI.org free tier, or GNews) into a scheduled ingestion job in `app/core/scheduler.py`
 
-Each ingested doc is chunked (800 words, 120 overlap) and embedded locally — no Gemini
-call happens until the final reasoning step, so ingesting a large corpus costs nothing
-beyond compute.
+Each ingested doc is chunked (800 words, 120 overlap) and embedded via Gemini's
+`text-embedding-004` model — one API call per chunk. This is the same key you already
+set for reasoning; ingesting a few dozen documents costs negligible quota on Gemini's
+free tier.
 
 ## 3. Training the ML model on real data
 

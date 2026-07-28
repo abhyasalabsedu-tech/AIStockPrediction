@@ -83,7 +83,7 @@ class Document(Base):
     source_url = Column(String(500), nullable=True)
     published_at = Column(DateTime, nullable=True)
     chunk_text = Column(Text)
-    embedding = Column(Vector(384))    # all-MiniLM-L6-v2 dim
+    embedding = Column(Vector(768))    # Gemini text-embedding-004 dim
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

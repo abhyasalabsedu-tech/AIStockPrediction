@@ -1,12 +1,12 @@
 import time
 from app.models.schema import Document, SessionLocal
-from app.rag.embed import embed_text
+from app.rag.embed import embed_query
 
 
 def retrieve(query: str, ticker: str = "TCS", k: int = 6) -> dict:
     """Cosine-similarity search over pgvector. Returns top-k chunks + latency + mean similarity."""
     t0 = time.perf_counter()
-    query_vec = embed_text(query)
+    query_vec = embed_query(query)
 
     db = SessionLocal()
     try:
