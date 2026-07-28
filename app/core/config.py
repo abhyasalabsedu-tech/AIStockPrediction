@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     eval_cron_hour: int = 16
     eval_cron_minute: int = 30
     admin_token: str = "changeme"
+    alpha_vantage_api_key: str = ""  # optional Plan B data source, see market_data.py
 
     class Config:
         env_file = ".env"
