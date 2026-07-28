@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     eval_cron_hour: int = 16
     eval_cron_minute: int = 30
+    admin_token: str = "changeme"
 
     class Config:
         env_file = ".env"

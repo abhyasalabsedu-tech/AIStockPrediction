@@ -1,5 +1,5 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.orm import Session
 
 from app.models.schema import get_db, Prediction, EvaluationRun
@@ -8,7 +8,10 @@ from app.services.indicators import compute_all_indicators
 from app.agents.graph import run_pipeline
 from app.services.ai import generate_reasoning
 from app.rag.retrieve import retrieve, build_query_for_ticker
+from app.rag.ingest import ingest_document
 from app.ml.predict import predict as ml_predict
+from app.ml.train import train as train_ml_model
+from app.core.security import require_admin
 
 router = APIRouter()
 
@@ -19,6 +22,26 @@ def get_quote(ticker: str = Query(default="TCS.NS")):
         return fetch_latest_quote(ticker)
     except Exception as e:
         raise HTTPException(502, f"Market data fetch failed: {e}")
+
+
+@router.get("/series")
+def get_series(ticker: str = Query(default="TCS.NS"), period: str = Query(default="5d"), interval: str = Query(default="15m")):
+    """Real OHLCV history for charting. Intraday intervals (e.g. 15m) only work for short periods on yfinance's free data."""
+    try:
+        df = fetch_ohlcv(ticker, period=period, interval=interval)
+    except Exception as e:
+        raise HTTPException(502, f"Market data fetch failed: {e}")
+
+    df = df.tail(120)
+    return [
+        {
+            "t": ts.strftime("%H:%M") if period in ("1d", "5d") else ts.strftime("%d %b"),
+            "price": round(float(row["close"]), 2),
+            "vwap": round(float((row["high"] + row["low"] + row["close"]) / 3), 2),
+            "volume": int(row["volume"]),
+        }
+        for ts, row in df.iterrows()
+    ]
 
 
 @router.get("/indicators")
@@ -129,3 +152,41 @@ def get_latest_evaluation(ticker: str = Query(default="TCS.NS"), db: Session = D
     if not row:
         raise HTTPException(404, "No evaluation runs yet. Run app/core/evaluation.py after a day of predictions.")
     return {c.name: getattr(row, c.name) for c in row.__table__.columns}
+
+
+# ============================== ADMIN ENDPOINTS ==============================
+# These let you trigger training/ingestion by clicking buttons in the dashboard's
+# Admin tab, instead of needing a terminal or Render's (paid-only) Shell feature.
+
+@router.post("/admin/train")
+def admin_train_model(ticker: str = Query(default="TCS.NS"), _auth: bool = Depends(require_admin)):
+    """Trains XGBoost on 5 years of real historical data. Takes ~10-30 seconds."""
+    try:
+        metrics = train_ml_model(ticker)
+        return {"status": "success", "metrics": metrics}
+    except Exception as e:
+        raise HTTPException(500, f"Training failed: {e}")
+
+
+@router.post("/admin/ingest")
+def admin_ingest_document(
+    payload: dict = Body(...),
+    _auth: bool = Depends(require_admin),
+):
+    """
+    Body: { "title": "...", "doc_type": "Annual Report", "ticker": "TCS", "text": "...paste raw text..." }
+    Embeds via Gemini and stores in pgvector. Costs one embedding API call per ~800-word chunk.
+    """
+    title = payload.get("title")
+    doc_type = payload.get("doc_type")
+    ticker = payload.get("ticker", "TCS")
+    text = payload.get("text", "")
+
+    if not title or not doc_type or not text.strip():
+        raise HTTPException(400, "title, doc_type, and text are all required.")
+
+    try:
+        n_chunks = ingest_document(title, doc_type, text, ticker)
+        return {"status": "success", "chunks_ingested": n_chunks}
+    except Exception as e:
+        raise HTTPException(500, f"Ingestion failed: {e}")

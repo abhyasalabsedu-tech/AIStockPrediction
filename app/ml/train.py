@@ -45,8 +45,8 @@ def build_dataset(df: pd.DataFrame) -> pd.DataFrame:
     return feat.dropna()
 
 
-def train():
-    df = fetch_training_history(years="5y")
+def train(ticker: str = None):
+    df = fetch_training_history(ticker=ticker, years="5y")
     dataset = build_dataset(df)
 
     X, y = dataset[FEATURE_COLS], dataset["label"].astype(int)
