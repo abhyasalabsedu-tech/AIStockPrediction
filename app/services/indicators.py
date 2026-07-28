@@ -78,7 +78,7 @@ def compute_all_indicators(df: pd.DataFrame) -> dict:
 
     support = float(df["low"].tail(30).min())
     resistance = float(df["high"].tail(30).max())
-    volatility_10d = float(close.pct_change().tail(10).std() * 100)
+    volatility_10d = float(close.pct_change(fill_method=None).tail(10).std() * 100)
 
     def sig(cond_bull, cond_bear):
         return "Bullish" if cond_bull else ("Bearish" if cond_bear else "Neutral")

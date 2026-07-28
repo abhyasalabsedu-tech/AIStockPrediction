@@ -178,14 +178,30 @@ def fetch_ohlcv(ticker: str = None, period: str = "6mo", interval: str = "1d") -
 def fetch_latest_quote(ticker: str = None) -> dict:
     ticker = ticker or settings.default_ticker
     df = fetch_ohlcv(ticker, period="5d", interval="1d")
+    df = df.dropna(subset=["close"])  # guard against holiday/gap rows with no trades
+
+    if len(df) < 2:
+        raise ValueError(f"Not enough valid trading days returned for {ticker} to compute a change.")
+
     last, prev = df.iloc[-1], df.iloc[-2]
+
+    if prev["close"] == 0 or pd.isna(prev["close"]) or pd.isna(last["close"]):
+        raise ValueError(f"Invalid price data for {ticker} (zero or NaN close price).")
+
     change = last["close"] - prev["close"]
+    change_pct = change / prev["close"] * 100
+
+    def _safe(x):
+        """JSON can't encode NaN/Infinity -- convert any stray non-finite float to None."""
+        x = float(x)
+        return round(x, 2) if pd.notna(x) and x not in (float("inf"), float("-inf")) else None
+
     return {
         "ticker": ticker,
-        "price": round(float(last["close"]), 2),
-        "change": round(float(change), 2),
-        "change_pct": round(float(change / prev["close"] * 100), 2),
-        "volume": int(last["volume"]),
+        "price": _safe(last["close"]),
+        "change": _safe(change),
+        "change_pct": _safe(change_pct),
+        "volume": int(last["volume"]) if pd.notna(last["volume"]) else None,
         "as_of": datetime.utcnow().isoformat(),
     }
 
