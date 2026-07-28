@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: stockxai-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://your-netlify-site.netlify.app
+      - key: DEFAULT_TICKER
+        value: TCS.NS
