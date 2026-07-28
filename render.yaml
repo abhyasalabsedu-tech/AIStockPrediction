@@ -10,6 +10,6 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: CORS_ORIGINS
-        value: https://your-netlify-site.netlify.app
+        value: https://tcsstock.netlify.app
       - key: DEFAULT_TICKER
         value: TCS.NS
