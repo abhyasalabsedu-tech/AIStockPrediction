@@ -1,13 +1,23 @@
 """
 Real market data via yfinance (free, no key). TCS on NSE = ticker 'TCS.NS'.
+
+IMPORTANT: Yahoo Finance actively blocks plain requests from cloud/datacenter IPs
+(the kind Render, Railway, etc. use) -- this is why a raw yfinance call that works
+fine on a home/office connection can fail with "possibly delisted; no price data
+found" once deployed. curl_cffi impersonates a real Chrome browser's TLS/HTTP
+fingerprint, which is the standard fix as of 2024+ Yahoo anti-bot changes.
+
 Swap `fetch_ohlcv` internals for Kite Connect / Upstox later without touching callers.
 """
 import pandas as pd
 import yfinance as yf
+from curl_cffi import requests as curl_requests
 from datetime import datetime
 from app.core.config import get_settings
 
 settings = get_settings()
+
+_session = curl_requests.Session(impersonate="chrome")
 
 
 def fetch_ohlcv(ticker: str = None, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
@@ -17,7 +27,7 @@ def fetch_ohlcv(ticker: str = None, period: str = "6mo", interval: str = "1d") -
     Returns DataFrame indexed by datetime with columns: Open, High, Low, Close, Volume
     """
     ticker = ticker or settings.default_ticker
-    df = yf.Ticker(ticker).history(period=period, interval=interval)
+    df = yf.Ticker(ticker, session=_session).history(period=period, interval=interval)
     if df.empty:
         raise ValueError(f"No data returned for {ticker}. Check ticker symbol or network access.")
     df = df.rename(columns=str.lower)
