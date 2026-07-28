@@ -11,7 +11,7 @@ from app.core.config import get_settings
 settings = get_settings()
 genai.configure(api_key=settings.gemini_api_key)
 
-EMBED_MODEL = "models/text-embedding-004"
+EMBED_MODEL = "models/embedding-001"
 EMBED_DIM = 768
 
 
